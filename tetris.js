@@ -117,7 +117,6 @@ class Tetris {
 }
 
 const imageSquareSize = 24;
-const size = 40;
 const framePerSecond = 24;
 const gameSpeed = 5;
 const canvas = document.getElementById("canvas");
@@ -127,8 +126,64 @@ const image = document.getElementById("image");
 const ctx = canvas.getContext("2d");
 const nctx = nextShapeCanvas.getContext("2d");
 const sctx = scoreCanvas.getContext("2d");
-const squareCountX = canvas.width / size;
-const squareCountY = canvas.height / size;
+
+// Переменные для полноэкранного режима
+let size = 40;
+let squareCountX;
+let squareCountY;
+
+// Функция для настройки полноэкранного режима
+let setupFullscreen = () => {
+  // Устанавливаем размеры canvas на весь экран
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  
+  // Вычисляем оптимальный размер блоков
+  const maxSquareCountX = 12; // Стандартная ширина Тетриса
+  const maxSquareCountY = 20; // Стандартная высота Тетриса
+  
+  const sizeByWidth = Math.floor(canvas.width / maxSquareCountX);
+  const sizeByHeight = Math.floor(canvas.height / maxSquareCountY);
+  
+  size = Math.min(sizeByWidth, sizeByHeight);
+  
+  // Вычисляем количество квадратов
+  squareCountX = Math.floor(canvas.width / size);
+  squareCountY = Math.floor(canvas.height / size);
+  
+  // Центрируем игровое поле
+  const gameAreaWidth = maxSquareCountX * size;
+  const gameAreaHeight = maxSquareCountY * size;
+  
+  canvas.style.position = 'fixed';
+  canvas.style.top = '0';
+  canvas.style.left = '0';
+  canvas.style.zIndex = '1000';
+  canvas.style.backgroundColor = '#000';
+  
+  // Настраиваем размеры для дополнительных canvas
+  nextShapeCanvas.width = size * 6;
+  nextShapeCanvas.height = size * 6;
+  nextShapeCanvas.style.position = 'fixed';
+  nextShapeCanvas.style.top = '20px';
+  nextShapeCanvas.style.right = '20px';
+  nextShapeCanvas.style.zIndex = '1001';
+  nextShapeCanvas.style.border = '2px solid white';
+  
+  scoreCanvas.width = 300;
+  scoreCanvas.height = 100;
+  scoreCanvas.style.position = 'fixed';
+  scoreCanvas.style.top = '20px';
+  scoreCanvas.style.left = '20px';
+  scoreCanvas.style.zIndex = '1001';
+  scoreCanvas.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
+  scoreCanvas.style.borderRadius = '10px';
+  
+  // Скрываем полосы прокрутки
+  document.body.style.overflow = 'hidden';
+  document.body.style.margin = '0';
+  document.body.style.padding = '0';
+};
 
 const shapes = [
   new Tetris(0, 120, [
@@ -171,11 +226,14 @@ const shapes = [
 
 let gameMap;
 let gameOver;
+let gamePaused = false;
 let currentShape;
 let nextShape;
 let score;
 let initialTwoDArr;
-let whiteLineThickness = 4;
+let whiteLineThickness = 2;
+let gameAreaOffsetX;
+let gameAreaOffsetY;
 
 let gameLoop = () => {
   setInterval(update, 1000 / gameSpeed);
@@ -196,7 +254,7 @@ let deleteCompleteRows = () => {
         gameMap[k] = gameMap[k - 1];
       }
       let temp = [];
-      for (let j = 0; j < squareCountX; j++) {
+      for (let j = 0; j < 12; j++) { // Стандартная ширина Тетриса
         temp.push({ imageX: -1, imageY: -1 });
       }
       gameMap[0] = temp;
@@ -205,7 +263,7 @@ let deleteCompleteRows = () => {
 };
 
 let update = () => {
-  if (gameOver) return;
+  if (gameOver || gamePaused) return;
   if (currentShape.checkBottom()) {
     currentShape.y += 1;
   } else {
@@ -234,22 +292,34 @@ let drawRect = (x, y, width, height, color) => {
 };
 
 let drawBackground = () => {
-  drawRect(0, 0, canvas.width, canvas.height, "#bca0dc");
-  for (let i = 0; i < squareCountX + 1; i++) {
+  // Заливаем весь экран черным
+  drawRect(0, 0, canvas.width, canvas.height, "#000");
+  
+  // Вычисляем смещение для центрирования игрового поля
+  const gameAreaWidth = 12 * size; // Стандартная ширина Тетриса
+  const gameAreaHeight = 20 * size; // Стандартная высота Тетриса
+  gameAreaOffsetX = (canvas.width - gameAreaWidth) / 2;
+  gameAreaOffsetY = (canvas.height - gameAreaHeight) / 2;
+  
+  // Рисуем игровое поле
+  drawRect(gameAreaOffsetX, gameAreaOffsetY, gameAreaWidth, gameAreaHeight, "#bca0dc");
+  
+  // Рисуем сетку
+  for (let i = 0; i < 13; i++) {
     drawRect(
-      size * i - whiteLineThickness,
-      0,
+      gameAreaOffsetX + size * i - whiteLineThickness,
+      gameAreaOffsetY,
       whiteLineThickness,
-      canvas.height,
+      gameAreaHeight,
       "white"
     );
   }
 
-  for (let i = 0; i < squareCountY + 1; i++) {
+  for (let i = 0; i < 21; i++) {
     drawRect(
-      0,
-      size * i - whiteLineThickness,
-      canvas.width,
+      gameAreaOffsetX,
+      gameAreaOffsetY + size * i - whiteLineThickness,
+      gameAreaWidth,
       whiteLineThickness,
       "white"
     );
@@ -266,8 +336,8 @@ let drawCurrentTetris = () => {
         currentShape.imageY,
         imageSquareSize,
         imageSquareSize,
-        Math.trunc(currentShape.x) * size + size * i,
-        Math.trunc(currentShape.y) * size + size * j,
+        gameAreaOffsetX + Math.trunc(currentShape.x) * size + size * i,
+        gameAreaOffsetY + Math.trunc(currentShape.y) * size + size * j,
         size,
         size
       );
@@ -286,8 +356,8 @@ let drawSquares = () => {
         t[j].imageY,
         imageSquareSize,
         imageSquareSize,
-        j * size,
-        i * size,
+        gameAreaOffsetX + j * size,
+        gameAreaOffsetY + i * size,
         size,
         size
       );
@@ -318,15 +388,27 @@ let drawNextShape = () => {
 
 let drawScore = () => {
   sctx.clearRect(0, 0, scoreCanvas.width, scoreCanvas.height);
-  sctx.font = "64px Poppins";
+  sctx.font = "32px Poppins";
   sctx.fillStyle = "black";
-  sctx.fillText(score, 10, 50);
+  sctx.fillText("Score: " + score, 10, 40);
+  sctx.font = "16px Poppins";
+  sctx.fillText("P - Pause | F - Fullscreen", 10, 70);
 };
 
 let drawGameOver = () => {
-  ctx.font = "64px Poppins";
-  ctx.fillStyle = "black";
-  ctx.fillText("Game Over!", 10, canvas.height / 2);
+  ctx.font = Math.floor(size * 1.5) + "px Poppins";
+  ctx.fillStyle = "red";
+  ctx.fillText("Game Over!", gameAreaOffsetX + 50, canvas.height / 2);
+  ctx.font = Math.floor(size) + "px Poppins";
+  ctx.fillText("Press R to restart", gameAreaOffsetX + 50, canvas.height / 2 + 50);
+};
+
+let drawPaused = () => {
+  ctx.font = Math.floor(size * 1.5) + "px Poppins";
+  ctx.fillStyle = "yellow";
+  ctx.fillText("PAUSED", gameAreaOffsetX + 50, canvas.height / 2);
+  ctx.font = Math.floor(size) + "px Poppins";
+  ctx.fillText("Press P to resume", gameAreaOffsetX + 50, canvas.height / 2 + 50);
 };
 
 let draw = () => {
@@ -338,34 +420,83 @@ let draw = () => {
   drawScore();
   if (gameOver) {
     drawGameOver();
+  } else if (gamePaused) {
+    drawPaused();
   }
 };
 
 let getRandomShape = () => {
   return Object.create(shapes[Math.floor(Math.random() * shapes.length)]);
 };
+
 let resetVars = () => {
   initialTwoDArr = [];
-  for (let i = 0; i < squareCountY; i++) {
+  for (let i = 0; i < 20; i++) { // Стандартная высота Тетриса
     let temp = [];
-    for (let j = 0; j < squareCountX; j++) {
+    for (let j = 0; j < 12; j++) { // Стандартная ширина Тетриса
       temp.push({ imageX: -1, imageY: -1 });
     }
     initialTwoDArr.push(temp);
   }
   score = 0;
   gameOver = false;
+  gamePaused = false;
   currentShape = getRandomShape();
   nextShape = getRandomShape();
   gameMap = initialTwoDArr;
+  
+  // Обновляем squareCount для логики игры
+  squareCountX = 12;
+  squareCountY = 20;
 };
 
-window.addEventListener("keydown", (event) => {
-  if (event.keyCode == 37) currentShape.moveLeft();
-  else if (event.keyCode == 38) currentShape.changeRotation();
-  else if (event.keyCode == 39) currentShape.moveRight();
-  else if (event.keyCode == 40) currentShape.moveBottom();
+let togglePause = () => {
+  if (!gameOver) {
+    gamePaused = !gamePaused;
+  }
+};
+
+let toggleFullscreen = () => {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().then(() => {
+      setTimeout(setupFullscreen, 100);
+    });
+  } else {
+    document.exitFullscreen();
+  }
+};
+
+let restartGame = () => {
+  resetVars();
+};
+
+// Обработчик изменения размера окна
+window.addEventListener('resize', () => {
+  setupFullscreen();
 });
 
+// Обработчик выхода из полноэкранного режима
+document.addEventListener('fullscreenchange', () => {
+  if (!document.fullscreenElement) {
+    // Возвращаем нормальные стили при выходе из полноэкранного режима
+    document.body.style.overflow = 'auto';
+    canvas.style.position = 'static';
+    nextShapeCanvas.style.position = 'static';
+    scoreCanvas.style.position = 'static';
+  }
+});
+
+window.addEventListener("keydown", (event) => {
+  if (event.keyCode == 37 && !gamePaused && !gameOver) currentShape.moveLeft(); // Левая стрелка
+  else if (event.keyCode == 38 && !gamePaused && !gameOver) currentShape.changeRotation(); // Верхняя стрелка
+  else if (event.keyCode == 39 && !gamePaused && !gameOver) currentShape.moveRight(); // Правая стрелка
+  else if (event.keyCode == 40 && !gamePaused && !gameOver) currentShape.moveBottom(); // Нижняя стрелка
+  else if (event.keyCode == 80) togglePause(); // P - пауза/продолжить
+  else if (event.keyCode == 70) toggleFullscreen(); // F - полноэкранный режим
+  else if (event.keyCode == 82) restartGame(); // R - перезапуск игры
+});
+
+// Инициализация
+setupFullscreen();
 resetVars();
 gameLoop();
